@@ -1,10 +1,11 @@
-
+const {validationResult} = require('express-validator');
 const {v4: uuidv4} = require('uuid');
 
+const getCoordsForAddress = require('../util/location');
 const HttpError = require('../models/http-error');
 
 
-const DUMMY_VARIABLES = [
+let DUMMY_VARIABLES = [
     {
         id: 'p1',
         title: 'Empire State Buiding',
@@ -19,7 +20,10 @@ const DUMMY_VARIABLES = [
 ];
 
 // Router Middleware callbacks
-// ---------------------------
+// ============================
+
+// GET
+// ---
 const getPlaceById = (req, res, next) => {
     // console.log('a GET request from Places')
     const placeId = req.params.pid;
@@ -34,23 +38,35 @@ const getPlaceById = (req, res, next) => {
     res.json({place: place});
 }
 
-
-const getPlaceByUserId = (req, res, next) => {
+const getPlacesByUserId = (req, res, next) => {
     const userId = req.params.uid;
-    const place = DUMMY_VARIABLES.find( p => p.creator === userId);
+    const places = DUMMY_VARIABLES.filter( p => p.creator === userId); // find() only returns the first match
 
-    if(!place){
-      const error = new HttpError('No Place Found with user id', 404);
+    if(!places || places.length === 0){
+      const error = new HttpError('No Places Found with user id', 404);
       return next(error);
     }
-    res.json({place: place});
+    res.json({places: places});
 }
 
-const createPlace = (req, res, next) => {
+// POST
+// ----
+const createPlace = async (req, res, next) => {
+    // Express-Validation
+    const errors = validationResult(req);
+    if(!errors.isEmpty()){
+        return next(new HttpError('Invalid Inputs', 402));
+    }
 
-    const {title, description, coordinates, address, creator} = req.body;
+    const {title, description, address, creator} = req.body;
 
-    console.log(creator);
+    let coordinates;
+    try{
+        coordinates = await getCoordsForAddress(address);
+    } catch(err){
+        return next(err);
+    }
+
     const createPlace = {
         id: uuidv4(),
         title, 
@@ -59,15 +75,56 @@ const createPlace = (req, res, next) => {
         address, 
         creator
     };  
-
     DUMMY_VARIABLES.push(createPlace);
     res.status(201).json({place: createPlace});
 }
 
+// UPDATE/PATCH
+// ------------
+const updatePlace = (req, res, next) => {
+    // Express-Validation
+    const errors = validationResult(req);
+    if(!errors.isEmpty()){
+        throw new HttpError('Invalid Inputs', 402);
+    }
+
+    const placeId = req.params.pid;
+    const {title, description } = req.body;
+    
+    const updatedPlace = { ...DUMMY_VARIABLES.find( p => p.id === placeId)}; // create copy coz of async issues
+    updatedPlace.title = title;
+    updatedPlace.description = description;
+    
+    const placeIndex = DUMMY_VARIABLES.findIndex( p => p.id === placeId); // find index of updated place 
+    DUMMY_VARIABLES[placeIndex] = updatedPlace; // update orginal array
+
+    res.status(200).json({place: updatedPlace}); // send res with body
+
+}
+
+
+// DELETE
+// ------
+const deletePlace = (req, res, next) => {
+
+    const placeId = req.params.pid;
+
+    if(!DUMMY_VARIABLES.find(p => p.id === placeId)){
+        throw new HttpError('Place Does Not Exist', 404);
+    }
+
+
+    DUMMY_VARIABLES = DUMMY_VARIABLES.filter(p => p.id !== placeId);
+
+    res.status(200).json({message: 'Deleted Place'});
+
+}
 
 
 //  Exports
 // --------
 exports.getPlaceById = getPlaceById;
-exports.getPlaceByUserId = getPlaceByUserId;
+exports.getPlacesByUserId = getPlacesByUserId;
 exports.createPlace = createPlace;
+exports.updatePlace = updatePlace;
+exports.deletePlace = deletePlace;

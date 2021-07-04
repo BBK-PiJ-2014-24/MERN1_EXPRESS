@@ -1,3 +1,5 @@
+// HttpError that extends JS Error object
+
 class HttpError extends Error {
     constructor(message, errorCode){
         super(message);
