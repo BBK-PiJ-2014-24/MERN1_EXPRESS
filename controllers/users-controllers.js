@@ -2,6 +2,8 @@ const {validationResult} = require('express-validator');
 const {v4: uuidv4} = require('uuid');
 const HttpError = require('../models/http-error');
 
+const User = require('../models/user'); // Mongoose model
+
 const DUMMY_USERS = [
     {
         id: 'u1',
@@ -16,32 +18,46 @@ const getUsers = (req, res, next) => {
 }
 
 
-const signup = (req, res, next) => {
+const signup = async (req, res, next) => {
     // Express-Validation
     const errors = validationResult(req);
     if(!errors.isEmpty()){
-        throw new HttpError('Invalid Inputs', 402);
+        const error = new HttpError('Invalid Inputs', 402);
+        return next(error);
     }
 
 
-    const {name, email, password} = req.body;
+    const {name, email, password, places} = req.body;
 
-    const alreadyUser = DUMMY_USERS.find( u =>  u.email === email );
+    let alreadyUser;
+    try{
+        alreadyUser = await User.findOne({email: email});
+    } catch(err) {
+        const error = new HttpError('Sign Up Failed', 500);
+        return next(error);
+    }
+    
     if(alreadyUser){
-        throw new HttpError('Could Not Create User. Email already exists', 422 );
+        const error = new HttpError('Could Not Create User. Email already exists', 422 );
+        return next(error);
     }
-
-
-    const newUser = {
-        id: uuidv4(),
+    
+    const newUser = new User( {
         name,
         email,
-        password
-    };
+        image:'https://images.pexels.com/photos/839011/pexels-photo-839011.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260',
+        password,
+        places,
+    });
 
-    DUMMY_USERS.push(newUser);
+    try {
+        await newUser.save();
+    } catch(err) {
+        const error = new HttpError('Failed to Set Up User', 500 );
+        return next(error);
+    }
 
-    res.status(201).json({user: newUser});
+    res.status(201).json({user: newUser.toObject({getters: true})});
 }
 
 
@@ -52,7 +68,7 @@ const login = (req, res, next) => {
     const user = DUMMY_USERS.find(u => u.email === email );
 
     if(!user || user.password !== password){
-        throw new HttpError('Login Details Incorrect', 401);
+        return next(new HttpError('Login Details Incorrect', 401));
     } 
 
     res.status(200).json({message: 'Logged In'});

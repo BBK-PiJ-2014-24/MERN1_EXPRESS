@@ -4,6 +4,9 @@ const {v4: uuidv4} = require('uuid');
 const getCoordsForAddress = require('../util/location');
 const HttpError = require('../models/http-error');
 
+const Place = require('../models/place'); // Mongoose Model Object
+
+
 
 let DUMMY_VARIABLES = [
     {
@@ -24,29 +27,41 @@ let DUMMY_VARIABLES = [
 
 // GET
 // ---
-const getPlaceById = (req, res, next) => {
+const getPlaceById = async (req, res, next) => {
     // console.log('a GET request from Places')
     const placeId = req.params.pid;
-    const place = DUMMY_VARIABLES.find( p=> p.id === placeId);
+
+    let place;
+    try {
+        place = await Place.findById(placeId);
+    } catch(err) {
+        const error = new HttpError('Cannot find in DB', 500);
+        return next(error);
+    }
 
     if(!place){
-    //   const error = new Error('No Place Found');
-    //   error.code = 404;
-    //   throw(error);  // throw error if sync code. Best pratice is to use next().
-         throw new HttpError('No Place Found', 404);
+        const error = new HttpError('No Place Found', 404);
+        return next(error);  
     }
-    res.json({place: place});
-}
+    res.json({place: place.toObject( {getters: true})}); // covert from MDB obj to JS obj
+}                                                        // getters drops underscore in id      
 
-const getPlacesByUserId = (req, res, next) => {
+const getPlacesByUserId = async (req, res, next) => {
     const userId = req.params.uid;
-    const places = DUMMY_VARIABLES.filter( p => p.creator === userId); // find() only returns the first match
+    
+    let places;
+    try{
+        places = await Place.find({creator: userId}); //mongoose returns an Array
+    } catch(err) {
+      const error = new HttpError('No Places Found in DB with user id', 500);
+      return next(error);
+    }
 
     if(!places || places.length === 0){
       const error = new HttpError('No Places Found with user id', 404);
       return next(error);
     }
-    res.json({places: places});
+    res.json({places: places.map(p => p.toObject({getters: true}))}); // convert Array to Obj 
 }
 
 // POST
@@ -67,54 +82,84 @@ const createPlace = async (req, res, next) => {
         return next(err);
     }
 
-    const createPlace = {
-        id: uuidv4(),
-        title, 
-        description, 
-        location: coordinates, 
+    // MongoDB obj for row insert using Model constructor
+    const createPlace = new Place({
+        title: title,
+        description,
         address, 
-        creator
-    };  
-    DUMMY_VARIABLES.push(createPlace);
+        location: coordinates,
+        image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/NYC_Empire_State_Building.jpg/640px-NYC_Empire_State_Building.jpg',
+        creator,
+    });
+
+    try {
+        await createPlace.save(); // Mongo update
+    } catch(err) {
+        const error = new HttpError("DB insert failed",  500);
+        return next(error);
+    }
+
     res.status(201).json({place: createPlace});
 }
 
 // UPDATE/PATCH
 // ------------
-const updatePlace = (req, res, next) => {
+const updatePlace = async (req, res, next) => {
     // Express-Validation
     const errors = validationResult(req);
     if(!errors.isEmpty()){
-        throw new HttpError('Invalid Inputs', 402);
+        const error = new HttpError('Invalid Inputs', 402);
+        return next(error);
     }
 
     const placeId = req.params.pid;
     const {title, description } = req.body;
     
-    const updatedPlace = { ...DUMMY_VARIABLES.find( p => p.id === placeId)}; // create copy coz of async issues
+    let updatedPlace;
+    try{
+        updatedPlace = await Place.findById(placeId); // returns a mongo obj
+    } catch(err) {
+        const error = new HttpError('Unable to find place in DB', 500);
+        return next(error);
+    }
+
     updatedPlace.title = title;
     updatedPlace.description = description;
     
-    const placeIndex = DUMMY_VARIABLES.findIndex( p => p.id === placeId); // find index of updated place 
-    DUMMY_VARIABLES[placeIndex] = updatedPlace; // update orginal array
 
-    res.status(200).json({place: updatedPlace}); // send res with body
+    try {
+        await updatedPlace.save();
+    } catch(err){
+        const error = new HttpError('Unable to update DB, 500');
+        return next(error);
+    }
+
+    res.status(200).json({place: updatedPlace.toObject({getters: true})}); // send res with body
 
 }
 
 
 // DELETE
 // ------
-const deletePlace = (req, res, next) => {
+const deletePlace = async (req, res, next) => {
 
     const placeId = req.params.pid;
 
-    if(!DUMMY_VARIABLES.find(p => p.id === placeId)){
-        throw new HttpError('Place Does Not Exist', 404);
+    let place;
+    try {
+        place = await Place.findById(placeId);
+    } catch(err) { 
+        const error = new HttpError('Place Does Not Exist', 404);
+        return next(error);
     }
 
 
-    DUMMY_VARIABLES = DUMMY_VARIABLES.filter(p => p.id !== placeId);
+    try {
+        await place.remove();
+    } catch(err) {
+        const error = new HttpError('Place Could Not Be Deleted', 500);
+        return next(error);
+    }
 
     res.status(200).json({message: 'Deleted Place'});
 
