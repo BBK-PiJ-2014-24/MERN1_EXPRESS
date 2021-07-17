@@ -1,10 +1,20 @@
 const express = require('express');
 const HttpError = require('./models/http-error');
+const mongoose = require('mongoose');
 
 const placesRoutes = require('./routes/places-routes');
 const usersRoutes = require('./routes/users-routes');
 
 const app = express();
+
+// MongoDB config
+// --------------
+const url = 'mongodb+srv://user1:Edcrfv123@cluster0.3ygns.mongodb.net/place?retryWrites=true&w=majority';
+const connectConfig = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    useCreateIndex: true
+   };
 
 app.use(express.json());  // get any data found in the body of the request and convert to Json.
 
@@ -32,5 +42,6 @@ app.use((error, req, res, next) => {
 
 });
 
-
-app.listen(5000);
+mongoose.connect(url, connectConfig)
+    .then(()=> {app.listen(5000);})
+    .catch(err => console.log(err));
