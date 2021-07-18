@@ -2,19 +2,27 @@ const {validationResult} = require('express-validator');
 const {v4: uuidv4} = require('uuid');
 const HttpError = require('../models/http-error');
 
+const mongoose = require('mongoose');
 const User = require('../models/user'); // Mongoose model
 
-const DUMMY_USERS = [
-    {
-        id: 'u1',
-        name: 'Joe Blog',
-        email: 'joe@gmail.com',
-        password: 'test'
-    }, 
-]
+// const DUMMY_USERS = [
+//     {
+//         id: 'u1',
+//         name: 'Joe Blog',
+//         email: 'joe@gmail.com',
+//         password: 'test'
+//     }, 
+// ]
 
-const getUsers = (req, res, next) => {
-    res.status(200).json({users: DUMMY_USERS});
+const getUsers = async (req, res, next) => {
+    let users;
+    try{
+        users = await User.find({}, '-password');
+    } catch(err) {
+        const error = new HttpError('No Users in DB', 500);
+        return next(error);
+    }
+    res.json({users: users.map(u => u.toObject({getters: true}))}); // convert MDB obj array to JS obj array
 }
 
 
@@ -27,7 +35,7 @@ const signup = async (req, res, next) => {
     }
 
 
-    const {name, email, password, places} = req.body;
+    const {name, email, password, } = req.body;
 
     let alreadyUser;
     try{
@@ -47,7 +55,7 @@ const signup = async (req, res, next) => {
         email,
         image:'https://images.pexels.com/photos/839011/pexels-photo-839011.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260',
         password,
-        places,
+        places: [],
     });
 
     try {
@@ -61,13 +69,26 @@ const signup = async (req, res, next) => {
 }
 
 
-const login = (req, res, next) => {
+const login = async (req, res, next) => {
 
     const {email, password} = req.body;
 
-    const user = DUMMY_USERS.find(u => u.email === email );
+    let alreadyUser;
+    try{
+        alreadyUser = await User.findOne({email: email});
+    } catch(err) {
+        const error = new HttpError('Login Failed', 500);
+        return next(error);
+    }
 
-    if(!user || user.password !== password){
+    if(!alreadyUser || alreadyUser.password !== password){
+        const error = new HttpError('Invalid Login Inputs', 401);
+        return next(error);
+    }
+
+
+
+    if(!alreadyUser || alreadyUser.password !== password){
         return next(new HttpError('Login Details Incorrect', 401));
     } 
 
