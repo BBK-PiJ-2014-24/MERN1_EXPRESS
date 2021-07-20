@@ -18,6 +18,16 @@ const connectConfig = {
 
 app.use(express.json());  // get any data found in the body of the request and convert to Json.
 
+
+// WorkAround to Avoid CORS error
+// ------------------------------
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization' );
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE');
+    next();
+});
+
 // Routes
 // ------
 app.use('/api/places/', placesRoutes); // routes are now part of middleware
