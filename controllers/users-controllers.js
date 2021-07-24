@@ -92,7 +92,7 @@ const login = async (req, res, next) => {
         return next(new HttpError('Login Details Incorrect', 401));
     } 
 
-    res.status(200).json({message: 'Logged In'});
+    res.status(200).json({message: 'Logged In', user: alreadyUser.toObject({getters: true})});
 
 }
 
