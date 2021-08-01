@@ -1,5 +1,8 @@
 const { validationResult } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
 const HttpError = require("../models/http-error");
 
 const mongoose = require("mongoose");
@@ -25,6 +28,8 @@ const getUsers = async (req, res, next) => {
   res.json({ users: users.map((u) => u.toObject({ getters: true })) }); // convert MDB obj array to JS obj array
 };
 
+// SIGN UP
+// =======
 const signup = async (req, res, next) => {
   // Express-Validation
   const errors = validationResult(req);
@@ -51,11 +56,20 @@ const signup = async (req, res, next) => {
     return next(error);
   }
 
+  let hashedPassword;
+  const salt = 12;
+  try {
+    hashedPassword = await bcryptjs.hash(password, salt);
+  } catch (err) {
+    const error = new HttpError("Server Login Error", 500);
+    return next(error);
+  }
+
   const newUser = new User({
     name,
     email,
     image: req.file.path,
-    password,
+    password: hashedPassword,
     places: [],
   });
 
@@ -66,9 +80,25 @@ const signup = async (req, res, next) => {
     return next(error);
   }
 
-  res.status(201).json({ user: newUser.toObject({ getters: true }) });
+  let token;
+  try {
+    token = jwt.sign(
+      { userId: newUser.id, email: newUser.email },
+      "Private__KEY",
+      { expiresIn: "1h" }
+    );
+  } catch (err) {
+    const error = new HttpError("Login Server Failure. Try Again.", 500);
+    return next(error);
+  }
+
+  res
+    .status(201)
+    .json({ userId: newUser.id, email: newUser.email, token: token });
 };
 
+// LOGIN
+// =====
 const login = async (req, res, next) => {
   const { email, password } = req.body;
 
@@ -80,21 +110,45 @@ const login = async (req, res, next) => {
     return next(error);
   }
 
-  if (!alreadyUser || alreadyUser.password !== password) {
+  if (!alreadyUser) {
     const error = new HttpError("Invalid Login Inputs", 401);
     return next(error);
   }
 
-  if (!alreadyUser || alreadyUser.password !== password) {
-    return next(new HttpError("Login Details Incorrect", 401));
+  // PASSWORD CHECK
+  // ==============
+
+  let isValidPassword = false;
+  try {
+    isValidPassword = await bcrypt.compare(password, alreadyUser.password);
+  } catch (err) {
+    const error = new HttpError("Login Incorrect. Try Again.", 500);
+    return next(error);
   }
 
-  res
-    .status(200)
-    .json({
-      message: "Logged In",
-      user: alreadyUser.toObject({ getters: true }),
-    });
+  if (!isValidPassword) {
+    const error = new HttpError("Invalid Password", 401);
+    return next(error);
+  }
+
+  let token;
+  try {
+    token = jwt.sign(
+      { userId: alreadyUser.id, email: alreadyUser.email },
+      "Private__KEY",
+      { expiresIn: "1h" }
+    );
+  } catch (err) {
+    const error = new HttpError("Login Server Failure. Try Again.", 500);
+    return next(error);
+  }
+
+  res.status(201).json({
+    message: "Logged In",
+    userId: alreadyUser.id,
+    email: alreadyUser.email,
+    token: token,
+  });
 };
 
 exports.getUsers = getUsers;
