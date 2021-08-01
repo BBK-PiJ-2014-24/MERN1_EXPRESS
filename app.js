@@ -40,7 +40,7 @@ app.use(
   "/uploads/images",
   express.static("/home/stewart/MERN1_EXPRESS/uploads/images")
 );
-console.log(path.join(__dirname, "uploads", "images"));
+// console.log(path.join(__dirname, "uploads", "images"));
 app.use("/api/places/", placesRoutes); // routes are now part of middleware
 app.use("/api/users/", usersRoutes); // routes are now part of middleware
 
