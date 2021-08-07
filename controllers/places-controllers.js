@@ -155,6 +155,11 @@ const updatePlace = async (req, res, next) => {
     return next(error);
   }
 
+  if(updatedPlace.creator.toString() !== req.userData.userId ){
+    const error = new HttpError('No Permission to Edit', 403);
+    return next(error);
+  }
+
   res.status(200).json({ place: updatedPlace.toObject({ getters: true }) }); // send res with body
 };
 
@@ -176,6 +181,10 @@ const deletePlace = async (req, res, next) => {
     return next(error);
   }
 
+  if(place.creator.id !== req.userData.userId){
+    const error = new HttpError('Incorrect Authorisation - Permission Denied', 403);
+    return next(error);
+  }
   const imagePath = place.image;
 
   try {

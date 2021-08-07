@@ -55,16 +55,17 @@ const signup = async (req, res, next) => {
     );
     return next(error);
   }
-
+  // Encrypt password
   let hashedPassword;
   const salt = 12;
   try {
-    hashedPassword = await bcryptjs.hash(password, salt);
+    hashedPassword = await bcrypt.hash(password, salt);
   } catch (err) {
     const error = new HttpError("Server Login Error", 500);
     return next(error);
   }
-
+  
+  // Set up new user as Mongoose model object
   const newUser = new User({
     name,
     email,
@@ -72,7 +73,7 @@ const signup = async (req, res, next) => {
     password: hashedPassword,
     places: [],
   });
-
+ // save to MDB with Mongoose 
   try {
     await newUser.save();
   } catch (err) {
@@ -80,6 +81,7 @@ const signup = async (req, res, next) => {
     return next(error);
   }
 
+  // set up jwt authorization token with parts: 1) payload, 2) private key that stays on server, 3) expiry option.
   let token;
   try {
     token = jwt.sign(
