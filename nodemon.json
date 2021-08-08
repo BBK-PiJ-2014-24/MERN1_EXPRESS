@@ -1,0 +1,9 @@
+{
+    "env": {
+        "DB_USER": "user1",
+        "DB_PASSWORD": "Edcrfv123",
+        "DB_NAME": "place",
+        "JWT_KEY": "Private__KEY"
+    }
+
+}

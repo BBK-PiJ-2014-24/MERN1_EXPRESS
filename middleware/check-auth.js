@@ -14,7 +14,7 @@ module.exports = (req, res, next) => {
     if (!token) {
       throw new Error("Missing Token");
     }
-    const decodedToken = jwt.verify(token, "Private__KEY"); // verify private key and decode with private key
+    const decodedToken = jwt.verify(token, process.env.JWT_KEY); // verify private key and decode with private key
     req.userData = { userId: decodedToken.userId };  // Add decryted payload to the req, which will now be passed to other objects
     next(); // pass on to the next middleware route.
   } catch (err) {
